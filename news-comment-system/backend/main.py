@@ -67,16 +67,25 @@ async def log_requests(request, call_next):
         if request.url.path.startswith("/api/"):
             origin = request.headers.get('origin', 'N/A')
             logger.info(f"[请求] 来源: {origin}")
-            # 强制刷新日志
-            sys.stdout.flush()
+            # 强制刷新日志（在某些环境下 flush 可能抛出 OSError，忽略即可）
+            try:
+                sys.stdout.flush()
+            except OSError:
+                pass
         response = await call_next(request)
         logger.info(f"[响应] {request.method} {request.url.path} - 状态码: {response.status_code}")
         # 刷新所有日志处理器
         for handler in logging.root.handlers:
-            handler.flush()
-            if hasattr(handler, 'stream') and hasattr(handler.stream, 'flush'):
-                handler.stream.flush()
-        sys.stdout.flush()
+            try:
+                handler.flush()
+                if hasattr(handler, 'stream') and hasattr(handler.stream, 'flush'):
+                    handler.stream.flush()
+            except OSError:
+                pass
+        try:
+            sys.stdout.flush()
+        except OSError:
+            pass
         return response
     except Exception as e:
         logger.error(f"[中间件错误] {str(e)}", exc_info=True)
